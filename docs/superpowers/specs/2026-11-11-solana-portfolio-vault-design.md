@@ -112,7 +112,7 @@ DEX integrations are direct Solana CPIs through audited adapters. The first adap
 Proposed accounts:
 - `VaultState`: version, bump, USDC mint, share mint, fixed allocation configuration, configured asset mints/programs, supported DEX program IDs, operation lock/sequence, accounting totals and immutable policy hash.
 - `AssetVault`: PDA authority and token account for one configured asset.
-- `DepositOperation`: depositor, escrowed USDC, pre-deposit NAV snapshot, snapshot slot/expiry, per-asset target amounts, completed step bitmap, actual spend/output, status and refund rules.
+- `DepositOperation`: depositor, isolated USDC escrow, per-asset staging accounts/amounts, completed step bitmap, actual spend/output, operation expiry, status and recovery rules. Staged deposit assets must remain outside the live vault balances until finalization.
 - `RedemptionOperation`: owner, locked share amount, share-supply snapshot, proportional asset quantities, per-asset completion state, accumulated USDC proceeds, minimum USDC output, status and expiry.
 - SPL share mint: standard SPL Token Program; no freeze authority; mint authority controlled by PDA.
 
@@ -246,7 +246,7 @@ These are engineering decisions to resolve and document before the relevant code
 - Initial share decimal/ratio and rounding policy.
 - Deposit expiry and partial-execution recovery policy.
 - Redemption expiry and partial-liquidation recovery policy.
-- Whether a serialized global operation lock is acceptable for the first release.
+- Confirmation that a single active NAV-changing operation at a time is acceptable for the first release (requests remain openable/queueable at any time, but execution is serialized).\n- Whether a permanently untradeable asset during a partially executed redemption may have an explicitly consented in-kind emergency fallback; default is no fallback and permissionless retry.
 - Transaction fee and protocol fee policy (default: no protocol fee until explicitly specified).
 
 The default recommendation is no protocol fee in the first version, no upgrade authority after audit, a serialized operation queue for safe accounting, and explicit asset-specific execution limits.
