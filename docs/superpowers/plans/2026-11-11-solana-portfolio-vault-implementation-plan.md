@@ -14,7 +14,7 @@ This plan covers the first audited-testnet-ready implementation milestone. It do
 
 The two newly approved architectural decisions are binding design inputs:
 
-1. **DEX execution:** Jupiter Metis on-chain Router as the primary route execution integration, behind a narrow adapter. Keep adapter boundaries modular for future direct Raydium CPMM and Orca Whirlpool integrations; do not add those adapters to v1 merely for breadth. Do not use Jupiter's managed Meta-Aggregator/RFQ execution path.
+1. **DEX execution (deferred gate):** Jupiter Metis on-chain Router remains the leading adapter candidate, behind a narrow adapter. It is not required for the interim USDC-only configuration. Implement it only after a non-USDC asset passes admission and the exact Router CPI contract is verified. Keep adapter boundaries modular for future direct Raydium CPMM and Orca Whirlpool integrations; do not add those adapters merely for breadth. Do not use Jupiter's managed Meta-Aggregator/RFQ execution path.
 2. **Partial redemption recovery:** PDA-backed, non-transferable Recovery Tickets. After the initial seven-day recovery delay, the ticket owner may atomically convert an incomplete redemption into a ticket that owns the accumulated USDC and all unsold reserved assets. Anyone may continue valid swaps from ticket escrow. The owner may claim all USDC when liquidation completes, or explicitly elect to receive residual tokens in kind. Tickets never expire into protocol ownership and cannot be seized or redirected by an administrator.
 
 ## 2. Implementation principles
@@ -175,7 +175,7 @@ Implement staged USDC deposits:
 
 1. Open deposit and escrow USDC with caller min-output/expiry constraints.
 2. Create an isolated operation PDA and escrow USDC. Do not take an authoritative NAV snapshot yet; it is taken at finalization.
-3. Derive fixed allocation amounts; retain the configured USDC reserve portion.
+3. Derive fixed allocation amounts. For the interim 100% USDC configuration, retain the entire deposit as USDC and perform no asset swap. Enable staged swap steps only after a non-USDC asset passes the admission gate.
 4. Execute one asset swap per permissionless step into operation-specific staging accounts.
 5. Record actual spend/output and mark each step complete exactly once.
 6. Finalize only when all required steps are complete, snapshot remains valid and accounting checks pass.
@@ -241,7 +241,7 @@ Implement the approved Recovery Ticket transition:
 
 ## 10. Phase 6 — Jupiter Metis Router adapter
 
-This phase is gated on independent verification, not merely the existence of API documentation.
+**Deferred for the interim USDC-only configuration.** Do not implement or invoke a DEX CPI adapter until at least one non-USDC asset passes the revised admission gate and the adapter is required by that approved allocation. When triggered, this phase is gated on independent verification, not merely the existence of API documentation.
 
 Verification checklist:
 - Current deployed Router program ID on the target cluster.
@@ -300,7 +300,7 @@ Implementation:
 
 The following are not silently assumed by this plan; they are explicit release-gate configuration items:
 
-1. Exact mint addresses, issuer details and token program compatibility for every portfolio asset, including the unfinished global-equity, emerging-markets and individual-stock slots.
+1. Exact mint addresses, issuer details and token program compatibility for each proposed future non-USDC asset. The interim configuration is 100% USDC; the previous unselected equity/commodity placeholders have been removed.
 2. Per-asset liquidity thresholds, maximum price impact, route constraints and NAV valuation methodology.
 3. Share decimals, initial share ratio and rounding/dust rules.
 4. Per-asset numerical valuation/execution thresholds and virtual asset/share offsets, minimum initial deposit, share precision and dust constants.
@@ -321,7 +321,7 @@ A decision that blocks safe accounting or asset custody must block that phase; i
 6. Implement valuation boundary.
 7. Implement deposit state machine and its recovery path.
 8. Implement redemption and Recovery Ticket state machines.
-9. Verify and implement the Jupiter adapter.
+9. Only if an admitted non-USDC asset requires swaps: verify and implement the selected DEX adapter after its exact CPI contract passes review.
 10. Complete adversarial testing, independent review and release checklist.
 
 No program code is changed until this plan is approved. After approval, implementation proceeds phase-by-phase with test-first commits and reviewable changes.
