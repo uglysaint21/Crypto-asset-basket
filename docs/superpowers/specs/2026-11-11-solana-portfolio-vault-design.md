@@ -236,6 +236,20 @@ Use test-driven development:
 
 No mainnet deployment or real-fund use is in scope for the initial implementation milestone.
 
+## 13.1 Transaction-cost policy and deposit preview
+
+The owner has accepted the following first-version policy:
+
+- The wallet submitting a Solana transaction pays that transaction's network fee. When a permissionless keeper/third party submits an operation step, that submitter pays the network fee for that step.
+- DEX swap fees, transfer fees where applicable, and execution price impact are reflected in the actual token amounts received. They are not separately billed by the program.
+- The protocol charges no additional management, performance, or gas-reimbursement fee in version one.
+- The vault does not operate a centralized gas sponsor or reimburse arbitrary transaction submitters.
+- Any account-rent or token-account creation costs must be disclosed in the transaction flow and assigned explicitly; they must not be hidden in NAV accounting.
+
+Before a deposit is finalized, the user interface should show an estimate of the net asset amounts expected to enter the portfolio after the planned swaps. The preview should itemize, per asset, the USDC allocation, estimated swap fee/price impact where the route exposes it, expected net token output, quote slot/time, and applicable slippage bounds. It must distinguish estimates from guaranteed outputs and show that final amounts can differ.
+
+The on-chain program remains authoritative: it enforces configured routes, minimum outputs, expiry and accounting rules. The preview is informational and must never be trusted as an on-chain price input. If the final execution cannot satisfy the user's minimum-output constraints, the relevant step must fail rather than silently accept worse execution.
+
 ## 14. Open implementation decisions
 
 These are engineering decisions to resolve and document before the relevant code is written:
