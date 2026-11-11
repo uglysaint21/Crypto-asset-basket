@@ -1,12 +1,12 @@
 # Solana Portfolio Vault — Design Specification
 
-**Status:** Architecture approved by project owner; implementation plan pending approval  
+**Status:** Architecture and security-remediation baseline accepted; implementation subject to release gates  
 **Date:** 2026-11-11  
 **Repository:** `uglysaint21/Crypto-asset-basket`
 
 ## 1. Intent
 
-Build a non-custodial, on-chain Solana portfolio vault. Users deposit USDC at any time. The program invests deposits according to fixed target weights, holds the resulting tokenized assets in PDA-controlled token accounts, and issues a transferable SPL portfolio share token. A user may redeem shares for one USDC payment; the vault liquidates the corresponding proportional quantities of its holdings through supported Solana DEX programs.
+Build a non-custodial, on-chain Solana portfolio vault. Users deposit USDC at any time. The program invests deposits according to fixed target weights, holds the resulting tokenized assets in PDA-controlled token accounts, and issues a transferable SPL portfolio share token. A user may redeem shares for one USDC payment; the vault liquidates the corresponding proportional quantities of its holdings through supported Solana DEX programs. The seven-day operation deadline is immutable from opening; incomplete operations follow permissionless recovery rules.
 
 The protocol must not depend on external price oracles, a hosted investment server, an administrator who can move assets, or an administrator who can change investment policy.
 
@@ -103,14 +103,14 @@ One Anchor program owns the vault state and PDA authorities. It maintains:
 - One vault token account per configured asset mint.
 - An SPL share mint whose mint authority is a program PDA.
 - Operation accounts for pending deposits and redemptions.
-- Reservation/accounting fields that prevent concurrent operations from spending the same inventory.
+- Aggregate locked-share and per-asset reserved-balance accounting; no long-lived vault-wide operation lock.
 
 DEX integrations are direct Solana CPIs through audited adapters. The first adapter(s) must be explicitly selected and pinned to known program IDs and account layouts. A hosted aggregator is not a mandatory dependency. A frontend or indexer may submit transactions and display events but is never authoritative for balances or permissions.
 
 ## 6. State and instruction boundaries
 
 Proposed accounts:
-- `VaultState`: version, bump, USDC mint, share mint, fixed allocation configuration, configured asset mints/programs, supported DEX program IDs, operation lock/sequence, accounting totals and immutable policy hash.
+- `VaultState`: version, bump, USDC mint, share mint, fixed allocation configuration, configured asset mints/programs, supported DEX program IDs, operation sequence, aggregate locked shares, per-asset reserved balances, recognized balances and immutable policy hash.
 - `AssetVault`: PDA authority and token account for one configured asset.
 - `DepositOperation`: depositor, isolated USDC escrow, per-asset staging accounts/amounts, completed step bitmap, actual spend/output, operation expiry, status and recovery rules. Staged deposit assets must remain outside the live vault balances until finalization.
 - `RedemptionOperation`: owner, locked share amount, share-supply snapshot, proportional asset quantities, per-asset completion state, accumulated USDC proceeds, minimum USDC output, status and expiry.
@@ -149,7 +149,7 @@ Indicative NAV is:
 
 `NAV_USDC = USDC_balance + sum(conservative_USDC_value(asset_i)) - liabilities`
 
-For an ordinary deposit, shares are calculated against pre-deposit NAV and pre-deposit share supply. The design must serialize NAV-changing operations (or use an equivalent rigorously proven accounting method) so concurrent deposits/redemptions cannot use the same stale snapshot. A deposit snapshot expires after a bounded slot interval; expired requests must not mint shares using stale valuation.
+For an ordinary deposit, shares are calculated against pre-deposit NAV and pre-deposit share supply. The design must serialize only short atomic accounting transitions, not hold a vault-wide lock between transactions. Deposits take their authoritative NAV/share-supply snapshot at finalization. Redemptions atomically lock shares and reserve only unreserved inventory. Pending redemption assets/proceeds remain represented in NAV while their shares remain in supply; they leave active NAV atomically when shares are burned or converted into a ticket. See section 14 for the complete reservation model.
 
 For a non-empty vault:
 
@@ -162,12 +162,12 @@ A critical implementation detail is that the staged deposit must not mint shares
 ## 8. Deposit lifecycle
 
 1. User opens a deposit with USDC and transaction-level slippage/expiry constraints.
-2. Program escrows the USDC and snapshots pre-deposit NAV, share supply and slot.
+2. Program escrows USDC in operation-specific accounts. The authoritative NAV and share-supply snapshot is taken at finalization, not at request opening.
 3. The operation determines fixed target amounts from the portfolio weights. The USDC reserve portion remains USDC; other portions are swapped through configured routes.
 4. Anyone may execute the next valid step. Each step validates the exact input/output mints, DEX program, pool, accounts, price impact and minimum output.
 5. If any step cannot meet constraints, it does not advance. The operation may be retried within its validity window.
 6. Once all steps complete, the program computes contribution value using actual balances/outputs, verifies snapshot freshness and accounting invariants, then mints shares.
-7. If the operation expires before execution is complete, the program follows a deterministic recovery/refund path. Any assets already acquired must be handled by a documented unwind or claim-in-kind recovery mechanism; they cannot be silently confiscated or misaccounted.
+7. If the operation expires before execution is complete, anyone may convert it into a Deposit Recovery Ticket containing all residual USDC and acquired tokens. The depositor remains the sole beneficiary; permissionless swaps are subject to depositor-approved floors, and the depositor may explicitly claim residual assets in kind.
 
 The implementation must settle the exact behavior of partial execution and expiry before deposit code is considered complete.
 
@@ -216,7 +216,7 @@ Recommended lifecycle:
 7. **Explicit in-kind escape hatch:** If an asset is permanently untradeable, only the ticket owner may choose to claim the remaining token(s) in kind together with accumulated USDC. This is an explicit user action, not an automatic protocol substitution. The normal withdrawal path remains USDC-only.
 8. **No confiscation or expiry forfeiture:** Tickets do not expire into protocol ownership. No administrator can redirect or seize ticket assets. A ticket can be closed only after its balances are fully claimed.
 
-The Recovery Ticket is a PDA-backed claim record for version one, not necessarily a transferable token. It stores the owner, original share amount, remaining token balances, accumulated USDC, route/recovery status, and replay-protection sequence. A later transferable receipt can be considered separately after the claim-accounting model is audited.
+The Recovery Ticket is a PDA-backed claim record for version one, not necessarily a transferable token. It stores the owner, original share amount, remaining token balances, accumulated USDC, route/recovery status, owner-set per-asset minimum execution rates, terms version and replay-protection sequence. Anyone may trigger conversion after expiry; only the owner may change floors or claim proceeds/assets. A later transferable receipt can be considered separately after the claim-accounting model is audited.
 
 **Accounting invariant:** Before conversion, locked shares remain in total share supply and redemption assets/proceeds remain attributable to the active redemption; the active NAV-changing operation is serialized. At conversion, the program atomically moves the entire residual claim out of active vault custody, burns the corresponding locked shares, and excludes ticket escrow balances from active NAV. This transition must be tested so assets are never counted both in vault NAV and as a ticket liability, and shares are never burned while the user loses the corresponding claim.
 
@@ -298,3 +298,57 @@ These are engineering decisions to resolve and document before the relevant code
 - Exact verified asset mints, Token-2022 compatibility, liquidity thresholds and NAV valuation methodology.
 
 Approved architecture: Jupiter Metis Router as the primary adapter (subject to CPI verification), modular direct DEX adapter boundaries for later alternatives, and PDA-backed Recovery Tickets with an initial seven-day delay and owner-elected in-kind recovery. The default fee policy remains no protocol fee in v1; no upgrade authority after audit remains the deployment recommendation; serialized execution and explicit asset-specific limits remain recommended.
+
+
+## 14. Security remediation baseline (authoritative)
+
+The full remediation decisions are recorded in [the security remediation document](../reviews/2026-11-11-solana-portfolio-vault-security-remediation.md). This section makes the core rules part of the design specification and overrides any older conflicting wording above.
+
+### 14.1 No long-lived global operation lock
+
+Deposits and redemptions use isolated operation PDAs and escrow accounts. No operation may hold a vault-wide lock while waiting across transactions. Short accounting transitions are atomic. Aggregate locked shares and per-asset reserved quantities prevent overlapping redemptions. Queued requests take no NAV snapshot and reserve no balances until activation.
+
+For a new redemption, use unlocked share supply (total supply less already locked shares) and unreserved live inventory. Pending redemption assets and proceeds remain attributed to locked shares and included in total NAV until those shares are burned. At normal settlement or ticket conversion, assets leave active NAV atomically with share burn.
+
+### 14.2 Immutable seven-day expiry and permissionless recovery
+
+Every multi-transaction deposit/redemption has an immutable seven-day deadline from its opening timestamp. Retries cannot extend it. After expiry:
+- An unstarted redemption can be cancelled by anyone; shares return only to the recorded owner.
+- A partially executed redemption can be converted by anyone into its owner's Recovery Ticket.
+- An incomplete deposit can be converted by anyone into a Deposit Recovery Ticket.
+
+The caller receives no custody, claim or authority. Recovery failure is retryable and must not mutate balances.
+
+### 14.3 Deposit Recovery Ticket
+
+A partially executed deposit transfers all remaining USDC and acquired staged assets into a PDA-backed ticket. No shares are minted. The depositor is the sole beneficiary. Anyone may continue swaps subject to owner-set execution floors; only the depositor may claim USDC after full conversion or explicitly elect in-kind claim. Tickets never expire into protocol ownership and remain excluded from active NAV.
+
+### 14.4 Ticket execution and minimum-USDC protection
+
+Each ticket asset has an owner-approved minimum execution rate. Permissionless executors cannot lower it. Only the owner may update it, with a monotonic terms version and event. Normal redemption requires aggregate USDC at or above the original minimum. Ticket conversion preserves the full residual claim and is not a payout. If all assets are sold below the original minimum, USDC claim requires explicit owner consent to a lower threshold; otherwise the owner may elect in-kind recovery where assets remain.
+
+### 14.5 Manipulation-resistant oracle-free valuation
+
+No single instantaneous pool spot quote may determine NAV or share issuance. Each enabled asset must have a documented on-chain observation method, initially targeting at least two economically independent liquidity venues and a 30-minute minimum observation history, plus a current executable sell quote, cross-venue deviation checks, liquidity/price-impact bounds and a conservative haircut. These are initial baselines, not universal guarantees; numeric limits are immutable per asset and must be justified by measured liquidity and attack-cost analysis.
+
+If reliable observations or sufficient independent liquidity are unavailable, deposits cannot finalize or mint shares. Do not fall back to caller prices, off-chain quotes or a single spot pool. Redemptions can continue using actual execution and user minimums where routes exist.
+
+### 14.6 Share math, recognized balances and unsolicited transfers
+
+Use immutable virtual asset/share offsets, a minimum initial deposit, minimum share-mint rules, checked wide-integer math and conservative rounding. The exact constants must be derived and tested before implementation. Maintain a recognized-balance ledger. Unsolicited transfers above the ledger are unrecognized surplus and are excluded from NAV; no administrator may sweep them. All program-controlled movements update the ledger from actual balance deltas.
+
+### 14.7 V1 token compatibility
+
+V1 defaults to the legacy SPL Token Program for portfolio assets. Token-2022 mints are rejected until extensions are individually reviewed and supported. Require revoked mint and freeze authorities by default. Any exception for an issuer-controlled authority must be documented and explicitly accepted before that asset is enabled. Unsupported extensions, transfer hooks, permanent delegates, pausable/default-frozen states and non-transferable/confidential assets are rejected.
+
+### 14.8 Jupiter CPI isolation and fail-closed gate
+
+Jupiter Swap API /build is an off-chain instruction builder, not an on-chain program or trusted oracle. Before implementing CPI, pin and verify the exact deployed program ID, instruction discriminator/data, account order/privileges, downstream program behavior, source/IDL revision and upgrade authority. Only the verified swap instruction is accepted. Operation-specific escrow accounts are exposed to CPI; shared live vault token accounts are never passed to the router. Validate all mints, token programs, source/destination accounts, PDA signer, amount, minimum output, remaining accounts and actual balance deltas. If these constraints cannot be proven, do not implement the Jupiter adapter; return with a direct adapter alternative for review.
+
+### 14.9 Upgrade and portfolio-weight semantics
+
+Development upgrade authority is held by a secure multisig. Mainnet immutability after independent audit, reproducible build verification and deployment rehearsal is preferred; retaining upgradeability is an explicit trust trade-off. The configured percentages describe new-deposit allocation weights, not continuously maintained portfolio weights. Actual weight drift must be displayed; no automatic rebalancing is implied.
+
+### 14.10 Release blockers
+
+No asset is enabled until its exact mint, token program, issuer authorities, extension state, on-chain observation support, independent liquidity venues, executable route and per-asset risk parameters are verified. Virtual share offsets and minimums must be mathematically selected. The exact Jupiter CPI contract must be verified before integration. These are implementation gates, not assumptions that can be resolved by documentation alone.
