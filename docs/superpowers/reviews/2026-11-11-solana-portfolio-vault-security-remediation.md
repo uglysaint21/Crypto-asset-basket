@@ -177,6 +177,15 @@ The prior proposed investment basket is superseded for v1. A review of issuer do
 
 **Additional controls:** immutable exact-mint registry/configuration hash; revalidation of token program and mint account at transfer/valuation boundaries; per-asset exposure and operation-size caps; deterministic fail-closed circuit breakers for stale/divergent valuation or insufficient executable liquidity; existing user claims remain recoverable and are never confiscated. USDC issuer risk must be disclosed in the UI and deployment documentation.
 
+**Evidence consulted for this compatibility pass (re-check exact live account state before deployment):**
+- xStocks' official description of its Solana Token-2022 corporate-action architecture: https://xstocks.com/news/introducing-the-xbridge
+- Paxos' official Solana PAXG launch description, including Token-2022 and Permanent Delegate: https://www.paxos.com/blog/bringing-paxg-to-solana
+- Ondo's Solana Global Markets program and its Token-2022 architecture: https://github.com/ondoprotocol/global-markets-solana
+- Ondo Solana security assessment describing Pausable, ConfidentialTransferMint, TransferHook and DefaultAccountState extensions: https://docs.ondo.finance/pdf/GM-Solana-Zellic-12-29-2025.pdf
+- Solana token documentation and exact-mint/authority validation guidance: https://solana.com/docs/tokens and https://solana.com/docs/tools/security
+- Solana USDC mint account example and active mint/freeze authorities: https://solana.com/docs/intro/quick-start/reading-from-network
+- Circle USDC terms covering blocklisting and freezing: https://www.circle.com/legal/usdc-terms
+
 ## 3. Finding disposition
 
 | Finding | Disposition | Remediation |
