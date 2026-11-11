@@ -210,9 +210,9 @@ Implement standard USDC-only redemption:
 
 Implement the approved Recovery Ticket transition:
 
-1. Enforce the fixed seven-day delay from the defined recovery clock (clock source and exact start event must be documented).
-2. Only the redemption owner may request conversion.
-3. In one atomic instruction, move accumulated USDC and all unsold reserved assets into ticket-specific escrow, burn the locked shares, record the ticket claim and release the global NAV-operation lock.
+1. Enforce the immutable seven-day deadline from operation opening using Solana Clock timestamp; retries cannot extend it.
+2. Anyone may trigger conversion after expiry; the original owner remains the sole ticket beneficiary.
+3. In one atomic instruction, move accumulated USDC and all unsold reserved assets into ticket-specific escrow, burn the locked shares, record the ticket claim and release the per-asset reservations; no long-lived global operation lock exists.
 4. Exclude ticket escrow from active vault NAV; it is a separate user liability/claim.
 5. Allow anyone to execute validated asset-to-USDC swaps from ticket escrow.
 6. Permit only the ticket owner to claim accumulated USDC after all residual assets are liquidated.
