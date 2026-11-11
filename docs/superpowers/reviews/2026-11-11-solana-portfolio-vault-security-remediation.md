@@ -202,3 +202,13 @@ The test suite must include:
 - Upgrade authority verification and reproducible build checks.
 
 **Scope statement:** This document changes the written architecture and implementation requirements only. No smart-contract source code has been implemented, and no tests have been run as part of this remediation.
+
+
+## 6. Technical references
+
+- Jupiter Swap API V2 overview: https://developers.jup.ag/docs/swap — documents the Router (/build and /submit) versus Meta-Aggregator (/order and /execute) distinction, Metis routing and raw instruction composition.
+- Jupiter custom swap guide: https://developers.jup.ag/docs/guides/how-to-build-a-custom-swap-with-metis — useful historical implementation context; current integrations should follow the V2 docs where they supersede older guidance.
+- Solana CPI documentation: https://solana.com/docs/core/cpi — PDA signing, account privilege propagation and CPI limits.
+- Solana PDA derivation: https://solana.com/docs/core/pda/pda-derivation — canonical PDA derivation and bump validation.
+- Solana security guidance: https://solana.com/docs/tools/security — account/program validation and security practices.
+- Token-2022 documentation: https://www.solana-program.com/docs/token-2022 — extension model and token compatibility considerations.
