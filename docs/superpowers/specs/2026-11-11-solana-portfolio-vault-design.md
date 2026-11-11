@@ -157,7 +157,7 @@ A critical implementation detail is that the staged deposit must not mint shares
 
 1. User opens a deposit with USDC and transaction-level slippage/expiry constraints.
 2. Program escrows USDC in operation-specific accounts. The authoritative NAV and share-supply snapshot is taken at finalization, not at request opening.
-3. The operation determines fixed target amounts from the portfolio weights. The USDC reserve portion remains USDC; other portions are swapped through configured routes.
+3. The operation determines fixed target amounts from the admitted portfolio weights. Under the interim 100% USDC configuration, no non-USDC swap is executed. If non-USDC assets are approved later, only their explicitly configured portions may be swapped through validated routes.
 4. Anyone may execute the next valid step. Each step validates the exact input/output mints, DEX program, pool, accounts, price impact and minimum output.
 5. If any step cannot meet constraints, it does not advance. The operation may be retried within its validity window.
 6. Once all steps complete, the program computes contribution value using actual balances/outputs, verifies snapshot freshness and accounting invariants, then mints shares.
@@ -281,7 +281,7 @@ The on-chain program remains authoritative: it enforces configured routes, minim
 
 These are engineering decisions to resolve and document before the relevant code is written:
 - Exact DEX adapter(s) and pinned program versions.
-- Exact verified mint addresses and token program types for all nine portfolio slots.
+- Exact verified mint addresses and token program types for each future non-USDC asset admitted under section 14.11; the interim configuration contains only USDC.
 - Minimum liquidity and price-impact thresholds per asset.
 - NAV route selection and conservative valuation algorithm.
 - Initial share decimal/ratio and rounding policy.
@@ -291,7 +291,7 @@ These are engineering decisions to resolve and document before the relevant code
 - Seven-day expiry is fixed from operation opening and cannot be extended by retries.
 - Exact verified asset mints, Token-2022 compatibility, liquidity thresholds and NAV valuation methodology.
 
-Approved architecture: Jupiter Metis Router as the primary adapter (subject to CPI verification), modular direct DEX adapter boundaries for later alternatives, and PDA-backed Recovery Tickets with an initial seven-day delay and owner-elected in-kind recovery. The default fee policy remains no protocol fee in v1; no upgrade authority after audit remains the deployment recommendation; isolated operation execution, short atomic accounting transitions and explicit asset-specific limits are the security baseline.
+Approved architecture: Jupiter Metis Router remains a candidate adapter subject to exact CPI verification and at least one approved non-USDC asset requiring swaps; it is not part of the interim USDC-only configuration. Keep modular direct DEX adapter boundaries for separately reviewed alternatives. PDA-backed Recovery Tickets have an initial seven-day delay and owner-elected in-kind recovery. The default fee policy remains no protocol fee in v1; no upgrade authority after audit remains the deployment recommendation; isolated operation execution, short atomic accounting transitions and explicit asset-specific limits are the security baseline.
 
 
 ## 14. Security remediation baseline (authoritative)
