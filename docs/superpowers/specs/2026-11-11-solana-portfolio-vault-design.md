@@ -169,7 +169,7 @@ A critical implementation detail is that the staged deposit must not mint shares
 6. Once all steps complete, the program computes contribution value using actual balances/outputs, verifies snapshot freshness and accounting invariants, then mints shares.
 7. If the operation expires before execution is complete, anyone may convert it into a Deposit Recovery Ticket containing all residual USDC and acquired tokens. The depositor remains the sole beneficiary; permissionless swaps are subject to depositor-approved floors, and the depositor may explicitly claim residual assets in kind.
 
-The implementation must settle the exact behavior of partial execution and expiry before deposit code is considered complete.
+Partial-deposit expiry is resolved by the Deposit Recovery Ticket rules in section 14.3; the implementation must test claim conservation for every partially completed state.
 
 ## 9. Redemption lifecycle
 
@@ -179,7 +179,7 @@ The implementation must settle the exact behavior of partial execution and expir
 4. Anyone may execute each asset-to-USDC sale through approved DEX routes, with per-step minimum output and route validation.
 5. After every required sale completes, the program verifies final USDC proceeds against the user's minimum.
 6. It burns the locked shares and transfers one USDC payment.
-7. If execution cannot complete, the request remains retryable. The program must define a safe expiry/recovery rule. Once any asset has been sold, cancellation cannot simply unlock the original shares without compensating for the sold assets; recovery must be designed explicitly.
+7. Every redemption expires seven days after opening. If no asset sale has succeeded, anyone may cancel after expiry and unlock shares only to the recorded owner. If any sale has succeeded, anyone may convert the redemption to its owner's Recovery Ticket after expiry. Conversion moves every remaining token and accumulated USDC into ticket escrow and burns locked shares atomically.
 
 Redemption uses the same share fraction for every holding. Fees and reserved liabilities must be included in the accounting model.
 
@@ -293,11 +293,11 @@ These are engineering decisions to resolve and document before the relevant code
 - Initial share decimal/ratio and rounding policy.
 - Deposit expiry and partial-execution recovery policy.
 - Deposit expiry and partial-execution recovery policy.
-- Confirmation that a single active NAV-changing operation at a time is acceptable for the first release (requests remain openable/queueable at any time, but execution is serialized).
-- Exact seven-day Recovery Ticket clock semantics.
+- Confirmation of per-asset maximum concurrent operation and reservation limits; no long-lived global operation lock is used.
+- Seven-day expiry is fixed from operation opening and cannot be extended by retries.
 - Exact verified asset mints, Token-2022 compatibility, liquidity thresholds and NAV valuation methodology.
 
-Approved architecture: Jupiter Metis Router as the primary adapter (subject to CPI verification), modular direct DEX adapter boundaries for later alternatives, and PDA-backed Recovery Tickets with an initial seven-day delay and owner-elected in-kind recovery. The default fee policy remains no protocol fee in v1; no upgrade authority after audit remains the deployment recommendation; serialized execution and explicit asset-specific limits remain recommended.
+Approved architecture: Jupiter Metis Router as the primary adapter (subject to CPI verification), modular direct DEX adapter boundaries for later alternatives, and PDA-backed Recovery Tickets with an initial seven-day delay and owner-elected in-kind recovery. The default fee policy remains no protocol fee in v1; no upgrade authority after audit remains the deployment recommendation; isolated operation execution, short atomic accounting transitions and explicit asset-specific limits are the security baseline.
 
 
 ## 14. Security remediation baseline (authoritative)
