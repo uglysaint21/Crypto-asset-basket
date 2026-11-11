@@ -14,18 +14,12 @@ The protocol must not depend on external price oracles, a hosted investment serv
 
 ### Target portfolio weights
 
-| Slot | Intended exposure | Weight | Verification state |
+| Slot | Intended exposure | Weight | Admission state |
 |---|---|---:|---|
-| 0 | SPYx — S&P 500 | 10% | Exact mint and route must be re-verified |
-| 1 | QQQx — Nasdaq-100 | 10% | Exact mint and route must be re-verified |
-| 2 | Global equity ETF | 15% | Exact Solana token not yet selected |
-| 3 | Emerging-markets ETF | 10% | Exact Solana token not yet selected |
-| 4 | PAXG — gold | 20% | Exact mint and route must be re-verified |
-| 5 | USDC reserve | 15% | USDC mint must be network-configured |
-| 6 | Individual tokenized stocks basket | 10% | Constituent mints not yet selected |
-| 7 | COPX | 5% | Exact mint and executable liquidity must be re-verified |
-| 8 | USOon | 5% | Exact mint and executable liquidity must be re-verified |
-| | **Total** | **100%** | |
+| 0 | Native USDC settlement/reserve (legacy SPL Token Program) | **100%** | **Interim configuration only**; exact mint and live authority state must be verified at deployment |
+| | **Total** | **100%** | No portfolio investment asset is currently approved |
+
+**Compatibility-driven rebalance (2026-11-11):** The previous 85% allocation to non-USDC exposures is removed from the v1 configuration. The only interim configured holding is native Solana USDC at 100%. This is a defensive cash-only configuration, not a diversified investment portfolio and not a claim that USDC is risk-free. It remains subject to Circle issuer/blocklist/freeze risk and is an explicit, narrowly scoped exception to the default revoked-authority rule because USDC is the required deposit, settlement and reserve asset. No security, ETF, commodity or staking token is silently substituted. The portfolio remains in asset-onboarding mode until at least one non-USDC asset passes every admission gate in section 14.7.
 
 Tickers are labels, never asset identifiers. Production configuration must use exact mint public keys, token program IDs, issuer information, and supported DEX route definitions. Unverified categories must not be silently replaced with another token. The program must not permit arbitrary user-supplied mints into the portfolio.
 
@@ -348,6 +342,45 @@ Jupiter Swap API /build is an off-chain instruction builder, not an on-chain pro
 ### 14.9 Upgrade and portfolio-weight semantics
 
 Development upgrade authority is held by a secure multisig. Mainnet immutability after independent audit, reproducible build verification and deployment rehearsal is preferred; retaining upgradeability is an explicit trust trade-off. The configured percentages describe new-deposit allocation weights, not continuously maintained portfolio weights. Actual weight drift must be displayed; no automatic rebalancing is implied.
+
+### 14.11 Compatibility-driven asset admission and interim rebalance
+
+**Interim portfolio:** 100% native USDC (Solana legacy SPL Token Program). This is a temporary defensive configuration, not the intended long-term diversified portfolio. No non-USDC portfolio asset is approved for v1 at this review point. Do not treat this as investment advice or as a promise of principal safety.
+
+**Removed from the previous target allocation:**
+- SPYx and QQQx: Solana xStocks uses Token-2022 for its corporate-action mechanism; issuer-controlled extensions/authorities conflict with the current v1 legacy-SPL-only and no-permanent-delegate admission posture.
+- PAXG on Solana: Paxos confirms that the Solana deployment uses Token-2022 and a Permanent Delegate. This is expressly incompatible with v1.
+- COPX and USOon: exact Solana mints and current extension/authority records were never established in the approved asset register. If considered as Ondo Global Markets assets, the issuer's published Solana implementation uses Token-2022 and includes Pausable, ConfidentialTransferMint, TransferHook and DefaultAccountState extensions. They are not admitted.
+- Global-equity ETF, emerging-markets ETF and individual tokenized-stock basket: these were unselected placeholders, not verified mint configurations. They are removed rather than left as implicit slots. xStocks or Ondo securities must not be reintroduced by ticker alone.
+
+These are v1 compatibility decisions, not assertions that the issuers' products are inherently unsafe. The protocol deliberately declines their issuer-control and Token-2022 feature surface under the present threat model.
+
+**USDC exception and issuer risk:** Solana USDC is a legacy SPL token, but its mint authority and freeze authority are active. Circle's terms also reserve blocklisting/freeze powers. The protocol accepts this only because USDC is the required base settlement asset; it is not an approved general-purpose investment holding under the revoked-authority rule. Document the exact mint, Token Program ID, decimals and observed authorities in the deployment manifest. A Circle freeze/blocklist action can make deposits, swaps, redemption payments or claims involving a frozen vault account fail. No vault program can override the issuer. Never describe the resulting vault as censorship-resistant with respect to USDC.
+
+**Future admission gate (all conditions required):**
+1. Hardcode/allowlist the exact mainnet mint and exact token program ID. Reject symbol/name/metadata matching and caller-selected mints.
+2. Decode and validate the mint account on-chain; record decimals, mint authority, freeze authority, token program and any extension state in an immutable asset manifest/configuration hash.
+3. V1 non-USDC assets must use the legacy SPL Token Program, with mint and freeze authorities revoked, unless a specific, separately reviewed issuer-risk exception is approved. No silent Token-2022 acceptance.
+4. Require no permanent delegate, transfer hook, pausable, default-frozen, confidential-transfer, transfer-fee or other unsupported extension. For any future Token-2022 proposal, require a separate threat model, adapter tests and explicit owner approval before changing this policy.
+5. Require documented issuer/custody/redemption terms and jurisdiction/transfer restrictions; on-chain token compatibility does not establish legal ownership, reserve backing or redemption rights.
+6. Require at least two economically independent on-chain TWAP venues, minimum observation history, executable vault-sized sell quotes, liquidity/impact bounds, and measured manipulation-cost analysis. Two pools sharing the same underlying liquidity source do not count.
+7. Require a successful exact-mint buy and sell route test, including actual balance deltas, minimum-output enforcement, transfer behavior and recovery behavior. Record the date, slot and evidence.
+8. Set per-asset maximum exposure, maximum operation size, minimum liquidity, deviation bound and haircut from measured market data and attack-cost analysis. Do not invent universal numeric values.
+9. A token that fails any gate is excluded from share-issuance NAV and from deposit allocation. No fallback to caller-supplied prices or alternate mints.
+
+**Candidate research is not approval:** Wrapped SOL may be evaluated as a native-asset candidate because Solana documents its native mint under the legacy Token Program. Liquid-staking tokens such as JitoSOL and mSOL are not automatically approved: their stake-pool minting/redemption authority and depeg/stake-pool risks need separate review, and the current authority policy may disqualify them. No replacement weight is assigned until that review is complete.
+
+**No automatic substitution:** If all non-USDC candidates fail, retain the 100% USDC interim configuration or pause launch of the investment product. Do not automatically fill vacant weights with SOL, another stablecoin, a wrapped asset or an issuer-controlled security token.
+
+### 14.12 Additional fail-closed controls
+
+- The on-chain asset registry is an exact-mint allowlist; asset identity never comes from ticker, symbol, metadata URI or an off-chain API.
+- Validate the configured token program and mint account owner on every instruction boundary that transfers or values an asset. Reject account substitution and duplicate mint aliases.
+- Bind each asset's route allowlist, valuation adapter, thresholds and maximum exposure into the immutable policy hash. No administrator can hot-add a mint or change weights.
+- Enforce per-asset exposure and per-operation amount caps selected from the liquidity/manipulation analysis. Cap calculations use recognized balances and reserved balances, not raw token-account balances.
+- Add deterministic per-asset circuit breakers: if required observations become stale, venues diverge, executable liquidity falls below its configured floor, or token-account/mint invariants fail, block new deposits and purchases involving that asset. Do not trap existing claims: allow safe redemption/recovery paths to continue where executable, otherwise preserve the owner's recovery ticket.
+- Do not add a discretionary admin pause that can seize, freeze or redirect user claims. Any emergency stop semantics must be narrowly scoped, deterministic, auditable and unable to transfer custody.
+- Treat USDC issuer freeze/blocklist as an external dependency. Expose this risk in the user interface and deployment checklist; do not claim the vault can guarantee settlement if the issuer freezes its token accounts.
 
 ### 14.10 Release blockers
 
