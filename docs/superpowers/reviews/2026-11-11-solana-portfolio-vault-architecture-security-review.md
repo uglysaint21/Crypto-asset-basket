@@ -339,3 +339,16 @@ Do not jump straight from the current implementation plan into DEX CPI code. Use
 This is a document-based architecture review. It did not inspect or execute an Anchor program, because the repository currently contains design documentation rather than an implemented program. It did not verify the current Jupiter program deployment, upgrade authority, IDL, or route CPI semantics on-chain. Those are explicit verification gates, not assumed facts.
 
 **Verdict:** The overall architecture is a reasonable starting point, but the current implementation plan is not yet security-complete. Resolve the Critical and High findings before coding the corresponding state machines or enabling real assets. An independent Solana security audit remains necessary before mainnet deployment.
+
+
+## 7. Follow-up remediation status
+
+A separate remediation pass has translated the findings into concrete architecture rules and updated the design specification and implementation plan:
+
+- Remediation decisions: docs/superpowers/reviews/2026-11-11-solana-portfolio-vault-security-remediation.md
+- Updated design: docs/superpowers/specs/2026-11-11-solana-portfolio-vault-design.md
+- Updated implementation plan: docs/superpowers/plans/2026-11-11-solana-portfolio-vault-implementation-plan.md
+
+The principal design changes are: remove the long-lived global operation lock; isolate every operation in its own escrow; impose an immutable seven-day operation deadline; add permissionless Deposit Recovery Tickets; let anyone trigger recovery while preserving the original user's ownership; enforce owner-set per-asset execution floors; require explicit consent for below-minimum USDC claims; use fail-closed multi-venue on-chain TWAP valuation; add virtual share/accounting offsets and a recognized-balance ledger; adopt a strict v1 token admission policy; and isolate all DEX CPI funds in operation-specific accounts.
+
+**Status:** The documentation-level remediations are applied. SEC-02, SEC-03 and SEC-08 remain asset/integration verification gates, and every design mitigation still requires implementation and adversarial tests. This follow-up does not upgrade the original review into a source-code audit.
