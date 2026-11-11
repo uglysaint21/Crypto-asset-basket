@@ -368,6 +368,16 @@ The authoritative remediation decisions are documented in docs/superpowers/revie
 - Development upgrade authority must be held by a secure multisig. Mainnet immutability after independent audit, reproducible build and deployment rehearsal is preferred.
 - Allocation percentages are new-deposit weights, not continuously maintained target holdings. Display actual weight drift; no automatic rebalancing.
 
+### 14.7 Revised v1 asset set and compatibility gate
+
+The prior tokenized-equity/commodity target basket is superseded. The interim v1 allocation is 100% native USDC and 0% non-USDC investment assets. This is a defensive cash-only configuration, not a diversified investment portfolio. USDC is a narrow settlement-asset exception: its legacy SPL mint has active issuer mint/freeze controls and Circle blocklisting/freeze powers. Document this risk; the program cannot override it.
+
+Exclude SPYx and QQQx (xStocks Token-2022 architecture), Solana PAXG (Paxos-confirmed Token-2022 with Permanent Delegate), COPX and USOon (unverified exact mints; if Ondo GM assets, Token-2022 extension architecture), and the unselected global-equity, emerging-markets and individual-stock placeholders. No silent substitutions.
+
+Before assigning any non-USDC weight, require: exact mint/program allowlist; authority and extension validation; legacy SPL and revoked mint/freeze authority by default; issuer/custody/legal review; two independent on-chain TWAP venues; executable vault-sized sell routes; measured liquidity/manipulation thresholds; and successful buy/sell/recovery tests. Wrapped SOL is a candidate for review only. JitoSOL and mSOL require explicit stake-pool authority/depeg review and are not pre-approved.
+
+Add immutable asset-manifest/configuration hashing, per-asset exposure and operation-size caps, deterministic fail-closed valuation/liquidity circuit breakers, and user-claim-preserving recovery behavior. No admin hot-add, no ticker-based asset identification, and no discretionary emergency pause capable of confiscating or redirecting claims.
+
 ### 14.6 Revised release blockers
 
 Do not enable an asset until exact mint, issuer/authority state, token program, supported extensions, executable route, independent on-chain observation venues, liquidity and per-asset thresholds are verified. Do not implement the Jupiter adapter until its exact deployment and CPI semantics are verified. Select virtual accounting constants through formal arithmetic tests. Obtain an independent audit before mainnet.
