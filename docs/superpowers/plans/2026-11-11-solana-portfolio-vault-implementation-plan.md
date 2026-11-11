@@ -298,7 +298,7 @@ Implementation:
 
 ## 12. Decisions still required before relevant code
 
-The following are not silently assumed by this plan:
+The following are not silently assumed by this plan; they are explicit release-gate configuration items:
 
 1. Exact mint addresses, issuer details and token program compatibility for every portfolio asset, including the unfinished global-equity, emerging-markets and individual-stock slots.
 2. Per-asset liquidity thresholds, maximum price impact, route constraints and NAV valuation methodology.
@@ -306,7 +306,7 @@ The following are not silently assumed by this plan:
 4. Per-asset numerical valuation/execution thresholds and virtual asset/share offsets, minimum initial deposit, share precision and dust constants.
 5. Maximum concurrent operation/account limits and per-asset reservation bounds; no long-lived global lock is permitted.
 6. Exact Jupiter Router deployment/CPI verification and whether it can satisfy the program's security boundary.
-7. Exact seven-day recovery clock semantics (recommended: elapsed Solana Clock timestamp from the first successful redemption liquidation step, so the delay cannot be reset by retries).
+7. Virtual asset/share offsets, minimum initial deposit, minimum share mint, share decimals and dust policy after formal arithmetic analysis.
 8. V1 token policy: legacy SPL Token Program only by default; any exception for Token-2022 or active issuer authority requires separate review and explicit acceptance.
 
 A decision that blocks safe accounting or asset custody must block that phase; it must not be filled with a guessed default.
