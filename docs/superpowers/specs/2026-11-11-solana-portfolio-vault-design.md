@@ -189,7 +189,7 @@ The first implementation must choose specific supported DEX program(s) and audit
 
 DEX pool state is market data, not an oracle guarantee. Pool manipulation, low liquidity, sandwiching, stale accounts, malicious remaining accounts, token extensions and transfer fees are threat-model items. The contract must fail closed when the valuation adapter cannot establish a sufficiently conservative value.
 
-## 10.1 Recommended DEX routing architecture (proposed)
+## 10.1 Approved DEX routing architecture
 
 **Primary recommendation: Jupiter Metis on-chain Router through a dedicated, narrowly scoped CPI adapter.** Use the Swap API V2 Router/build path only as an optional route-construction aid; it must not be a trusted price oracle, custody layer, transaction executor, or source of authorization. The Meta-Aggregator/RFQ managed-execution path is not used by the vault.
 
@@ -201,7 +201,7 @@ The adapter must be implemented only after the precise deployed router program I
 
 Jupiter's current documentation distinguishes the on-chain Metis Router/build path from the Meta-Aggregator path; the Router supports custom transaction composition/CPI and does not add a Jupiter swap fee, while the Meta-Aggregator includes additional routing engines and managed execution. The vault intentionally selects the Router path for program-controlled execution. This does not make every route risk-free: pool liquidity, downstream program upgrades, router upgrades, compute limits and CPI account-depth remain in the threat model.
 
-## 10.2 Recommended partial-redemption recovery: segregated recovery tickets (proposed)
+## 10.2 Approved partial-redemption recovery: segregated recovery tickets
 
 A USDC-only redemption cannot be guaranteed if a held token becomes permanently untradeable or no acceptable USDC route exists. No smart contract can manufacture USDC liquidity. The design must make this limitation explicit and provide a deterministic user-owned claim rather than pretending every withdrawal can always finish.
 
