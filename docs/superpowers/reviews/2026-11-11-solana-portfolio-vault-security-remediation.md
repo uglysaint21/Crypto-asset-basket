@@ -160,6 +160,23 @@ The official Jupiter documentation distinguishes Router (/build + /submit, Metis
 
 The configured percentages are new-deposit allocation weights, not a promise that actual portfolio holdings remain at those percentages. Relative price changes will cause drift because automatic rebalancing is not part of v1. User-facing reporting must show actual weights and drift. Any future underweight-directed deposit allocation or rebalancing is a separate strategy change requiring approval.
 
+### 2.12 Compatibility-driven portfolio rebalance and asset admission
+
+The prior proposed investment basket is superseded for v1. A review of issuer documentation and current Solana token standards found that the named tokenized securities/commodities are incompatible with the strict v1 admission policy or lack a verified mint/authority record.
+
+- SPYx and QQQx: xStocks' Solana architecture uses Token-2022. Its corporate-action implementation relies on Token-2022 scaled-UI functionality; public token records show issuer-controlled extension/authority risks. Exclude under legacy-SPL-only policy.
+- PAXG on Solana: Paxos explicitly states the Solana PAXG deployment uses Token-2022 and a Permanent Delegate. Exclude.
+- COPX and USOon: exact mint/program/authority state was not established in the asset register. If treated as Ondo Global Markets assets, the published Ondo Solana program uses Token-2022 with Pausable, ConfidentialTransferMint, TransferHook and DefaultAccountState extensions. Exclude.
+- Global equity, emerging-markets and individual-stock basket slots: placeholders without exact selected mints and authority evidence. Remove from allocation until individually verified.
+
+**Interim weights:** 100% native USDC, 0% non-USDC investment assets. This is a defensive, temporary cash-only configuration, not a diversified portfolio. The USDC mint is legacy SPL, but its mint and freeze authorities are active and Circle retains blocklisting/freeze powers. It is an explicit settlement-asset exception only; the protocol cannot prevent Circle from freezing USDC or guarantee that a frozen vault account can transfer or pay redemptions.
+
+**Admission gate:** exact mint and token program allowlist; on-chain authority/extension validation; legacy SPL-only for non-USDC v1 assets; issuer/custody/legal restrictions documented; two independent on-chain TWAP venues; executable vault-sized sell route; measured liquidity/manipulation-cost thresholds; exact buy/sell and recovery tests. A ticker or DEX listing is never sufficient. No silent replacement or admin hot-add.
+
+**Candidate, not approved:** wrapped SOL may be assessed as a native-asset candidate under the legacy Token Program. JitoSOL and mSOL require additional authority and liquid-staking risk review; they are not approved merely because they are standard SPL tokens.
+
+**Additional controls:** immutable exact-mint registry/configuration hash; revalidation of token program and mint account at transfer/valuation boundaries; per-asset exposure and operation-size caps; deterministic fail-closed circuit breakers for stale/divergent valuation or insufficient executable liquidity; existing user claims remain recoverable and are never confiscated. USDC issuer risk must be disclosed in the UI and deployment documentation.
+
 ## 3. Finding disposition
 
 | Finding | Disposition | Remediation |
