@@ -189,6 +189,39 @@ The first implementation must choose specific supported DEX program(s) and audit
 
 DEX pool state is market data, not an oracle guarantee. Pool manipulation, low liquidity, sandwiching, stale accounts, malicious remaining accounts, token extensions and transfer fees are threat-model items. The contract must fail closed when the valuation adapter cannot establish a sufficiently conservative value.
 
+## 10.1 Recommended DEX routing architecture (proposed)
+
+**Primary recommendation: Jupiter Metis on-chain Router through a dedicated, narrowly scoped CPI adapter.** Use the Swap API V2 Router/build path only as an optional route-construction aid; it must not be a trusted price oracle, custody layer, transaction executor, or source of authorization. The Meta-Aggregator/RFQ managed-execution path is not used by the vault.
+
+The route builder is replaceable: any frontend, keeper, or independent user may construct a candidate route. The vault program remains the enforcement boundary and must validate the exact input/output mints, source and destination token accounts, vault PDA authority, input amount, minimum output, allowed router program ID, allowed downstream DEX programs/pools, token program IDs, and all remaining accounts. No caller may redirect proceeds, add arbitrary fee recipients, substitute a mint, or invoke an unapproved program. The program records actual token balance deltas, not quote claims, as swap results.
+
+The adapter must be implemented only after the precise deployed router program ID, CPI interface/IDL, account constraints, downstream-program behavior, upgrade authority, and supported Token-2022 behavior have been independently verified and pinned. If these checks cannot be satisfied, do not ship the Jupiter CPI adapter; use explicitly audited direct adapters instead.
+
+**Fallback and decentralization boundary:** Keep the adapter interface modular so direct Raydium CPMM and Orca Whirlpool adapters can be added as independently audited alternatives. Do not add all adapters in the first release merely for breadth. First test whether the selected configured assets have adequate executable routes and liquidity through the primary router. A route-building API outage must not lock funds: permissionless clients can construct and submit valid routes using public on-chain state and the published instruction interface. No server-held key is required.
+
+Jupiter's current documentation distinguishes the on-chain Metis Router/build path from the Meta-Aggregator path; the Router supports custom transaction composition/CPI and does not add a Jupiter swap fee, while the Meta-Aggregator includes additional routing engines and managed execution. The vault intentionally selects the Router path for program-controlled execution. This does not make every route risk-free: pool liquidity, downstream program upgrades, router upgrades, compute limits and CPI account-depth remain in the threat model.
+
+## 10.2 Recommended partial-redemption recovery: segregated recovery tickets (proposed)
+
+A USDC-only redemption cannot be guaranteed if a held token becomes permanently untradeable or no acceptable USDC route exists. No smart contract can manufacture USDC liquidity. The design must make this limitation explicit and provide a deterministic user-owned claim rather than pretending every withdrawal can always finish.
+
+Recommended lifecycle:
+
+1. **Preflight:** Before locking shares or selling anything, the client supplies candidate routes for every asset in the user's proportional basket. The program validates each route and its minimum output constraints. If any asset has no acceptable route, the redemption does not start; the user can wait or choose a different redemption amount/constraint.
+2. **Lock and reserve:** Lock the requested shares in escrow and record the exact proportional quantities of each configured asset. Reserve those quantities so no other operation can spend them. Do not burn shares yet.
+3. **Independent liquidation steps:** Each asset-to-USDC swap executes as its own permissionless step into the redemption's isolated USDC escrow. A failed CPI or min-output check reverts that step and leaves its state unchanged. Completed steps remain recorded and cannot be replayed or counted twice.
+4. **Normal completion:** When every asset quantity has been liquidated, verify the total USDC against the user's minimum, burn the locked shares, and transfer one USDC payment.
+5. **Recovery delay:** If the redemption remains incomplete beyond a fixed, documented delay (initial proposal: seven days), the owner may convert it into a **Recovery Ticket**. The conversion atomically moves all accumulated USDC and every unsold reserved token into ticket-specific escrow, burns the locked portfolio shares, marks the ticket claim as excluded from active vault NAV, and releases the global operation lock.
+6. **Continue toward USDC:** Anyone may continue attempting approved asset-to-USDC swaps from the ticket escrow. When all residual assets have been sold, the ticket owner claims the accumulated USDC in one transfer.
+7. **Explicit in-kind escape hatch:** If an asset is permanently untradeable, only the ticket owner may choose to claim the remaining token(s) in kind together with accumulated USDC. This is an explicit user action, not an automatic protocol substitution. The normal withdrawal path remains USDC-only.
+8. **No confiscation or expiry forfeiture:** Tickets do not expire into protocol ownership. No administrator can redirect or seize ticket assets. A ticket can be closed only after its balances are fully claimed.
+
+The Recovery Ticket is a PDA-backed claim record for version one, not necessarily a transferable token. It stores the owner, original share amount, remaining token balances, accumulated USDC, route/recovery status, and replay-protection sequence. A later transferable receipt can be considered separately after the claim-accounting model is audited.
+
+**Accounting invariant:** Before conversion, locked shares remain in total share supply and redemption assets/proceeds remain attributable to the active redemption; the active NAV-changing operation is serialized. At conversion, the program atomically moves the entire residual claim out of active vault custody, burns the corresponding locked shares, and excludes ticket escrow balances from active NAV. This transition must be tested so assets are never counted both in vault NAV and as a ticket liability, and shares are never burned while the user loses the corresponding claim.
+
+**Trade-off:** The ticket prevents a permanently untradeable asset from indefinitely blocking the main vault or trapping portfolio shares. It cannot guarantee an all-USDC outcome when liquidity does not exist. The user retains the exact residual asset claim and may keep waiting for liquidity or explicitly take it in kind.
+
 ## 11. Token compatibility and asset onboarding
 
 The configured asset set is immutable after initialization in the initial design. The program accepts only exact configured mint addresses and supported token programs. Asset onboarding is a deployment prerequisite, not a permissionless arbitrary-mint feature.
