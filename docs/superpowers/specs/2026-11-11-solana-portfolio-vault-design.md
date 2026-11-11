@@ -1,6 +1,6 @@
 # Solana Portfolio Vault — Design Specification
 
-**Status:** Proposed; awaiting owner approval before implementation  
+**Status:** Architecture approved by project owner; implementation plan pending approval  
 **Date:** 2026-11-11  
 **Repository:** `uglysaint21/Crypto-asset-basket`
 
@@ -292,8 +292,9 @@ These are engineering decisions to resolve and document before the relevant code
 - NAV route selection and conservative valuation algorithm.
 - Initial share decimal/ratio and rounding policy.
 - Deposit expiry and partial-execution recovery policy.
-- Redemption expiry and partial-liquidation recovery policy.
-- Confirmation that a single active NAV-changing operation at a time is acceptable for the first release (requests remain openable/queueable at any time, but execution is serialized).\n- Whether a permanently untradeable asset during a partially executed redemption may have an explicitly consented in-kind emergency fallback; default is no fallback and permissionless retry.
-- Transaction fee and protocol fee policy (default: no protocol fee until explicitly specified).
+- Deposit expiry and partial-execution recovery policy.
+- Confirmation that a single active NAV-changing operation at a time is acceptable for the first release (requests remain openable/queueable at any time, but execution is serialized).
+- Exact seven-day Recovery Ticket clock semantics.
+- Exact verified asset mints, Token-2022 compatibility, liquidity thresholds and NAV valuation methodology.
 
-The default recommendation is no protocol fee in the first version, no upgrade authority after audit, a serialized operation queue for safe accounting, and explicit asset-specific execution limits.
+Approved architecture: Jupiter Metis Router as the primary adapter (subject to CPI verification), modular direct DEX adapter boundaries for later alternatives, and PDA-backed Recovery Tickets with an initial seven-day delay and owner-elected in-kind recovery. The default fee policy remains no protocol fee in v1; no upgrade authority after audit remains the deployment recommendation; serialized execution and explicit asset-specific limits remain recommended.
